@@ -1,0 +1,133 @@
+Interesting things to do when finalize basic parts:
+
+1. Use modeller to finalize.
+2. Derive residue pair interactions from the original complex. (very optional)
+   to infer the final model. This will imply a requisite in the input of residue-pair interactions
+
+
+
+
+Approach. Superposition:
+Differences:
+
+1) Pau Badia: https://github.com/Altairch95/SBI-PYT_MacroBuilder#macrocomplexbuilder-1
+Exhaustive search algorithm to see which subunits is the first complex interacting with
+Focus on interacting residues of each subunit:
+
+- We force program to check in each superimposition if those residues are interacting or not.
+  -Store the interacting residues for each chain and the corresponding chain they are interacting with.
+  - Looking for those residues that are not larger that 3,5 Amstrongs distance.
+  - Dictionary with each chain as key and all the information as values: interacting residues, interacting chain pair names and
+   interacting residues for the other chain.
+  - Function to update the interaction dictionary of each chain. If repeated interaction found, not inserted agin.
+
+- Check there are no clashes when superimpose (no interaction with rest of the model).
+  - Threshold distance of 2 Amstrongs.
+  - If distance is higher than threshold, program will try to add the pair in future steps.
+
+- Superimpose structures with 2 identical subunits.
+  - Check pairwise sequence identity bigger than 95%.
+  - Start with the chain with more interactions (to avoid starting with a pair that only interacts with itself).
+  - Rest of the pairs are randomly added (no order)
+  - Important: checklist with each superposition: we know for each chain which interactions are done and which ones are still remain to superpose.
+    Ensuring all interactions are correctly done.
+
+- DNA:
+  - As we just check the atomic positions of each strucutre, it also works.
+  - DNA sequence is needed, but the main function builds it anyway.
+
+
+2) Marc Elosua:https://github.com/Amoralpa11/SBI-project#1g65-proteasome
+1. Classification of chains based on amino-acid sequence.
+  - Sequences with %identity of 95% are considered the same chain.
+
+2. Eliminating repeated intearactions to reduce the ways it can add chains to the macrocomplex.
+  - Compares pairs of interacting chains and removes from the input pairs of chains that when superimposed to another pair get an RMSD under 7.
+
+3. Superimposition:https://github.com/MikiSchikora/SBI_project
+  - Based on recursive function that will try to add as many interactions as each chain can accept at that stage.
+  - Each node of the recursive tree has an ID indicating  the interactions occurring at that stage. This ID is saved for further used.
+    - It enables the program to assess if a macro-complex at a specific node has already been processed and, therefore, stop the branch.
+  - Before adding chains, check there are no clashes. Threshold = 1.2 Amstrongs.
+  - Once added, register the interactions that the new chain has with the surrounding ones.
+    - Done to not attempt to superimpose that interaction in nodes to come reducing processing demand.
+    - To find interactions: check if at least 8 alpha carbons are at less than 8 Amstrongs from another alpha carbon from another chain.
+    - Ensures that 2 identical structures will have the same identifier, avoiding to do the same process twice.
+    - Process only done if option intense is chosen, because it is the only scenario in which they compare complex identifiers.
+  - Only works with one structure, minimizing the memory usage.
+    - Once the recursion gets to the end of the branch (can't add more structures) it outputs the structure.
+
+4. Optimization and other refinements.
+
+
+3) Marina Lleal: Includes RMSD. And modules about branching. And Refinement.
+
+-----------------------------------------------------------------------------------------
+
+Mirar cuando tengamos funcionamiento básico. Incluyen modeller:
+
+https://github.com/martaferri/SBI_Project
+https://github.com/wod31/SBI-project
+
+-----------------------------------------------------------------------------------------
+
+
+No importantes:
+
+4) Helena Catena:
+Only accepts PDB files of pairs.
+
+- Looks for all the interaction a given chain has. Try to superimpose the chains that interacts with it. No more information.
+
+- Check clashes:
+  - Module NeighborSearch to explore the location of the moving chain in the complex before it is added.
+  - Threshold distance: 1.5 Amstrongs.         #Distance and number of clashes accepted can be modified.
+  - If distance is higher than threshold, program will try to add the pair in future steps.
+
+- Superimpose:
+  - Check pairwise sequence identity bigger than 98% (FIRST THING THEY DO IN THIS PROJECT)
+  - 1st chain is the one with more interactions (in the alignment has got a good score more times)
+  - Possible pairs that could superimpose are searched:
+    - 1st: Prepare translation and rotation to minimize the RMSD between the atoms of the fixed (complex) and moving chain.
+    - 2nd: Rotation matrix is applied to the other chain to move it from moving structure to the complex.
+  - Atoms used: alpha-carbons in case of amino acids. backbone phosphate in case of DNA.
+
+
+  - Limitations:
+    - It generates many models because there can be pairs with maximum number of interactions, being the first to start.
+    - No stoichometry.
+
+
+5) Lydia Forteca: See why they used sequences.
+- Identify if files are homodimers or heterodimers.
+- No stoichometry. Problems with homodimers and heterodimers. DON'T DO THAT.
+
+They use different modules depending on the pairs: homodymer (homodimers and repeated heterodimers) and heterodymer.
+Functions:
+- get_input: puts pdb files into a list
+- get_name_structure: regex return name of file.
+- commmon_functions.get_sequence: deletes heteroatoms and returns sequences of the protein with more than 40 aa(to avoid ligands). CapPPBuilder package.
+- common_functions.seq_comparison: pairwise alignment. If % identity good, return true or false. Bio.pairwise2 package.
+-* get_pdb_info: analyse all PDB files. Used to know if they are homodymers or heterodymers. Returns pairwise interaction and homodymer/heterodymer interactions.
+- common_functions.temp_structure: returns a temporary structure with the interactions.
+- common_functions.clash_identifier: Returns true if there is clash and false if not. If there is a clash, chain is not added.
+- common_functions.save_complex: just saves the complex in pdb file.
+- heterodimers.align_sequences_heterodimers: EXCTRACTS THE SEQUENCE OF THE CHAINS and aligns all with all. Stores % identity.
+- heterodimers.Superimpose_structures_heterodimers: chain it will superimpose is the one with best alignment.
+  Once superimposed, one of the chains is deleted in order to avoid repeated chains.
+- homodimers.get_structure: directly returns the built homodimer strucutre. Superimposes and avoids repetitions.
+- homodimers.get_structure mix: Called when there is a mix between homodimers and heterodimers. Mix of both.
+
+
+
+----------------------------
+
+
+OUR PROJECT
+setup.py
+Necessary:
+sudo apt-get install python3-distutils
+
+Carpeta Doc:
+HTML. Se hará sola con algúna función.
+report.pdf
