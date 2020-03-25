@@ -49,10 +49,10 @@ class CustomChain(Chain):      # dictionaries in utilities
         return sequence
 
 
-    def has_homolog(self, other_chain):
+    def has_homolog(self, other_sequence):
         cutoff = 0.95
         sequence1 = self.get_sequence()
-        sequence2 = other_chain.get_sequence()
+        sequence2 = other_sequence
 
         alignment = pairwise2.align.globalxx(sequence1, sequence2)[0]
         align_score = alignment[2]
