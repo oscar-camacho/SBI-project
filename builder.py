@@ -59,7 +59,7 @@ num_files = len(pdb_files)
 if options.verbose:
     sys.stderr.write('%s PDB files found.\n' %(num_files))
 
-parser = PDB.PDBParser()
+parser = PDB.PDBParser(PERMISSIVE=1, QUIET=True)
 if options.verbose:
     sys.stderr.write("Storing PDB information...\n")
 if num_files != 0:
@@ -105,7 +105,7 @@ for i in range(len(pdb_models)):
                 if homology:
                     m = re.search("(?<=\:)(.*?)(?=\|)", record.id)
                     id = m.group()
-                    if id is not None:          #exception may be
+                    if id is not None:          #
                         chain.id = id
                     else:
                         chain.id = record.id
@@ -135,4 +135,4 @@ for i in range(len(pdb_models)):
 
 for pdb_model in pdb_models:
     for chain in pdb_model.get_chains():
-        print(chain.id)
+        print(chain.get_sequence() + "\n")
