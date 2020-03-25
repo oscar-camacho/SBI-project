@@ -39,14 +39,19 @@ class CustomChain(Chain):      # dictionaries in utilities
         if first_residue not in self.protein_dict:
             if "D" in first_residue:
                 for res in self:
-                    sequence += self.dna_dict[res.resname]
+                    if res.id[0] == " ":
+                        sequence += self.dna_dict[res.resname.strip()]
             else:
                 for res in self:
-                    sequence += self.rna_dict[res.resname.strip()]
+                    if res.id[0] == " ":
+                        sequence += self.rna_dict[res.resname.strip()]
         else:
             for res in self:
-                sequence += self.protein_dict[res.resname]
+                if res.id[0] == " ":
+                    sequence += self.protein_dict[res.resname]
         return sequence
+
+
 
 
     def has_homolog(self, other_sequence):
