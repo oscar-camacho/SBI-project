@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 from Bio import SeqIO, PDB, pairwise2
-import argparse
-import os
-import sys
+import argparse, os, sys, re
 from CustomPDB import CustomChain
 from CustomPDB import CustomModel
 
@@ -29,8 +27,8 @@ if __name__ == "__main__":
                         default = False,
                         help = "Print log in stderr")
 
-    parser.add_argument('-p', '--pattern',
-                        dest = "pattern",
+    parser.add_argument('-fa', '--fasta',
+                        dest = "fasta",
                         action = "store",
                         default = None,
                         help = "Only sequences having the given regular expression 'pattern' will be in the output""")
@@ -87,13 +85,12 @@ if options.verbose:
 #También podemos pasarle las unique chains y que saque cada vez las ids...
 def new_id(id_list):
     """Returns ID for the chain object."""
-    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ñÑçÇ'
-    for letter in letters:
-        if letter not in id_list:
-            return letter
+    characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ñÑçÇ'
+    for character in characters:
+        if character not in id_list:
+            return character
 
 
-# Si hemos encontrado homólogo, quizá no me interesa añadirlo a la lista. Me interesa tener las unique chains. Alternativa es el set/diccionario
 unique_chains = []
 id_list = []
 for i in range(len(pdb_models)):
@@ -102,29 +99,40 @@ for i in range(len(pdb_models)):
     for chain in pdb.get_chains():
         chain = CustomChain(chain)
         chain.parent = None
-        if not unique_chains:
-            chain.id = new_id(id_list)
-            id_list.append(chain.id)
-            unique_chains.append(chain)
-        else:
-            for unique_chain in unique_chains:
-                homology = chain.has_homolog(unique_chain)
+        if options.fasta:
+            for record in SeqIO.parse(options.fasta, "fasta"):
+                homology = chain.has_homolog(record.seq)
                 if homology:
-                    chain.id = unique_chain.get_id()
-                    break
-                if unique_chain == unique_chains[-1]:
-                    chain.id = new_id(id_list)
-                    id_list.append(chain.id)
-                    unique_chains.append(chain)
+                    m = re.search("(?<=\:)(.*?)(?=\|)", record.id)
+                    id = m.group()
+                    if id is not None:          #exception may be
+                        chain.id = id
+                    else:
+                        chain.id = record.id
+        else:
+            if not unique_chains:
+                chain.id = new_id(id_list)
+                id_list.append(chain.id)
+                unique_chains.append(chain)
+            else:
+                for unique_chain in unique_chains:
+                    homology = chain.has_homolog(unique_chain.get_sequence())
+                    if homology:
+                        chain.id = unique_chain.get_id()
+                        break
+                    if unique_chain == unique_chains[-1]:
+                        chain.id = new_id(id_list)
+                        id_list.append(chain.id)
+                        unique_chains.append(chain)
         pdb_model.add(chain)
     pdb_models[i] = pdb_model
 
 
 
 #for unique_chain in unique_chains:
-#    print (unique_chain.id)
+#    print (unique_chain.get_sequence())
 
 
-#for pdb_model in pdb_models:
-#    for chain in pdb_model.get_chains():
-#        print(chain.id)
+for pdb_model in pdb_models:
+    for chain in pdb_model.get_chains():
+        print(chain.id)
