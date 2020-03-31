@@ -277,15 +277,19 @@ def complex_builder(interaction_dict, pdb_models, num_models, max_chains, verbos
                             if verbose:
                                 sys.stderr.write("  Succesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".\n")
                                 sys.stderr.write("  Chain " + str(num_of_chains) + " added: Chain " + move.id + " from model " + tuple[0].id + ".\n")
-                            move.parent = None      # Sets the parent to none to evade biopython's strict id policy
-                            macrocomplex.add(move)  # Adds the target chain to the model
+                            #move.parent = None      # Sets the parent to none to evade biopython's strict id policy
+                            #macrocomplex.add(move)  # Adds the target chain to the model
                             model_stech.setdefault(move.id, 0)
                             model_stech[move.id] += 1
                             num_of_chains += 1
+                            del interaction_dict[chain.id][0]   # elimino la tupla con el modelo que acabamos de añadir. faltaria eliinar la tupla con el mismo objeto.
                         else:
                             if verbose:
                                 sys.stderr.write("  Unsuccesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".\n")
-                                sys.stderr.write("  Chain " + move.id + " from model " + tuple[0].id + "NOT ADDED.\n")
+                                sys.stderr.write("  Chain " + move.id + " from model " + tuple[0].id + " NOT ADDED.\n")
+                        model_id = tuple[0].get_id()    #para eliminar la otra tupla quizá hay que identificarla por la id del modelo y luego mirar como eliminarla
+                        print(model_id)
+
 
 
 
