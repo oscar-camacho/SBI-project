@@ -3,7 +3,7 @@ from Bio import SeqIO, PDB, pairwise2
 from pdb_classes import CustomChain, CustomModel
 from exception_classes import *
 import utilities
-import argparse, os, sys, re
+import argparse, os, sys, re, random, copy
 
 
                         #EDITAR ESTO
@@ -157,25 +157,208 @@ def find_equivalent_chains(pdb_models, verbose=False):
 
 
 
-def build_complex(input, fasta, verbose):
-    if fasta is None:
-        sys.stderr.write("ATENTION! You did not provide a FASTA file. You may be required to specify the stoichometry during the course of the program.\n\n")
 
-    try:
-        pdb_models = data_extraction(input, verbose)
-    except (Directory_Not_Found, No_Input_Directory_Provided, No_PDB_Found, Incorrect_Number_Chains) as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
 
-    updated_pdb_models = find_equivalent_chains(pdb_models, verbose)
 
-    for pdb_model in updated_pdb_models:
+if options.fasta is None:
+    sys.stderr.write("ATENTION! You did not provide a FASTA file. You may be required to specify the stoichometry during the course of the program.\n\n")
+
+try:
+    pdb_models = data_extraction(options.input, options.verbose)
+except (Directory_Not_Found, No_Input_Directory_Provided, No_PDB_Found, Incorrect_Number_Chains) as e:
+    print(e, file=sys.stderr)
+    sys.exit(1)
+
+updated_pdb_models = find_equivalent_chains(pdb_models, options.verbose)
+
+#for pdb_model in updated_pdb_models:
+#    for chain in pdb_model.get_chains():
+#        print(chain.id)
+
+
+
+
+def data_transformation(pdb_models, verbose):
+    interaction_dict = {}
+    count = 0
+    for pdb_model in pdb_models:
         for chain in pdb_model.get_chains():
-            print(chain.id)
+            count += 1
+            if count%2 == 0:
+                chain_index = 0
+            else:
+                chain_index = 1
+            interaction_dict.setdefault(chain.id, [])
+            if chain.id in interaction_dict:
+                interacting_chain = [other_chain for other_chain in pdb_model.get_chains()][chain_index]
+                interaction_dict[chain.id].append((pdb_model, chain, interacting_chain))
+    return interaction_dict
+
+interaction_dict = data_transformation(updated_pdb_models, options.verbose)
+for key in interaction_dict:
+    print (interaction_dict[key])
+
+
+def starting_model(pdb_models, verbose):
+    chain_count = {}
+    max_value = 0
+    possible_models = []
+    for pdb_model in pdb_models:
+        for chain in pdb_model.get_chains():
+            if chain.id not in chain_count:
+                chain_count[chain.id] = 0
+            chain_count[chain.id] += 1
+    for chain, value in chain_count.items():
+        if value > max_value:
+            max_value = value
+            max_interacting_chain = chain
+    for pdb_model in pdb_models:
+        for chain in pdb_model.get_chains():
+            if chain.id == max_interacting_chain:
+                possible_models.append(pdb_model)
+    starting_model = random.choice(possible_models)
+    return starting_model
+
+
+#starting_model = starting_model(updated_pdb_models, options.verbose)
+#print (starting_model)
+
+
+def generate_model_profile(model):
+    """Generates a dictionary with the id chain as key and the number of repetitions of this chain as values"""
+    profile = {}  # { "A":1, "B":4, ...}
+    for chain in model:
+        profile.setdefault(chain.id, 0)  # If id not in dic, set it to 0
+        profile[chain.id] += 1 # Sum 1 to the counter of the id
+    return profile
+
+
+def has_clashes(move_atoms, model):
+    """Compares the atoms backbone atoms of the moving chain with the backbone atoms of the model"""
+    backbone = {"CA", "C1\'"}
+    chain_atoms = [atom for atom in move_atoms if atom.id in backbone]  # Gets only the backbone atoms
+    model_atoms = [atom for atom in model.get_atoms() if atom.id in backbone]
+    ns = PDB.NeighborSearch(model_atoms)  # Generates a neigbour search tree to speed up distance calculations
+    clashes = 0
+    for atom in chain_atoms:
+        clashes += bool(ns.search(atom.coord, 2))  # If this atom shows clashes, add 1 to the clashes counter
+    if clashes/len(chain_atoms) >= 0.03:  # If more than 3% of atoms show clashes return yes
+        return True
+    else:  # Otherwise return no
+        return False
+
+
+def complex_builder(interaction_dict, pdb_models, num_models, max_chains, verbose):
+    for i in range(1, num_models + 1):
+        if verbose:
+            sys.stderr.write("Building Macrocomplex " + str(i) + " ...\n")
+        macrocomplex = starting_model(pdb_models, verbose).copy()
+        model_stech = generate_model_profile(macrocomplex)
+        macrocomplex.id = "Model_" + str(i)
+        run = True  # While this variable is true, the program will keep trying to add chains to the macrocomplex
+        num_of_chains = 2  # The model starts with 2 chains already
+        num_empty_chains = 0  # NUmber of chains that have all their interactions depleted
+        #while run:
+        for chain in macrocomplex:  # Iterates the macrocomplex chains
+            if num_of_chains < max_chains:  # If the number of chains still hasn't reached the maximum allowed
+                if len(interaction_dict[chain.id]) != 0:    # If this chain still has pending interactions. Chain id is the key of the dictionary
+                    random.shuffle(interaction_dict[chain.id])   # Shuffle the interactions list (to avoid repetitive behaviour)
+                    for tuple in interaction_dict[chain.id]:
+                        fix = tuple[1]    # Get the chain instance that corresponds to the same chain in macrocomplex
+                        to_move = tuple[2]   # Get the chain instance that interacts with the other
+                        sup = PDB.Superimposer()  # Generates a superimposer instance
+                        chain_atoms, fix_atoms = chain.get_common_atoms(fix) # Get common atoms between the
+                                                                                # macrocomplex chain and the one in the interaction dictionary
+                        sup.set_atoms(chain_atoms, fix_atoms)  # Generate the superposition
+                        move = to_move.copy()  # Make a copy of the chain to move
+                        sup.apply(move)  # Apply superposition matrix
+                        move_atoms = sorted(move.get_atoms())
+                        if not has_clashes(move_atoms, macrocomplex):
+                            if verbose:
+                                sys.stderr.write("  Succesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".\n")
+                                sys.stderr.write("  Chain " + str(num_of_chains) + " added: Chain " + move.id + " from model " + tuple[0].id + ".\n")
+                            move.parent = None      # Sets the parent to none to evade biopython's strict id policy
+                            macrocomplex.add(move)  # Adds the target chain to the model
+                            model_stech.setdefault(move.id, 0)
+                            model_stech[move.id] += 1
+                            num_of_chains += 1
+                        else:
+                            if verbose:
+                                sys.stderr.write("  Unsuccesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".\n")
+                                sys.stderr.write("  Chain " + move.id + " from model " + tuple[0].id + "NOT ADDED.\n")
 
 
 
-build_complex(options.input, options.fasta, options.verbose)
+# Will have to remove from interaction_dict the models with the model id
+#for pdb_model in pdb_models:
+#    if pdb_model.get_id() == str(1):
+#        print("hi")
+
+
+
+complex_builder(interaction_dict, pdb_models, 1, 100, options.verbose)
+
+
+
+
+
+
+
+
+
+
+#def starting_model2(interacting_dict, verbose):
+#    max_interactions = 0
+#    for key, value in interaction_dict.items():
+#        if len(value) > max_interactions:
+#            len(value) = max_interactions
+#            starting_model = key
+#    return starting_model
+
+#a=starting_model2(interacting_dict, options.verbose)
+#print(a)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#def build_complex(input, fasta, verbose):
+#    if fasta is None:
+#        sys.stderr.write("ATENTION! You did not provide a FASTA file. You may be required to specify the stoichometry during the course of the program.\n\n")
+
+#    try:
+#        pdb_models = data_extraction(input, verbose)
+#    except (Directory_Not_Found, No_Input_Directory_Provided, No_PDB_Found, Incorrect_Number_Chains) as e:
+#        print(e, file=sys.stderr)
+#        sys.exit(1)
+
+#    updated_pdb_models = find_equivalent_chains(pdb_models, verbose)
+
+#    for pdb_model in updated_pdb_models:
+#        for chain in pdb_model.get_chains():
+#            print(chain.id)
+
+
+
+#build_complex(options.input, options.fasta, options.verbose)
+
+
 
 
 
