@@ -54,6 +54,7 @@ class CustomChain(Chain):
                     sequence += self.protein_dict[res.resname]
         return sequence
 
+
     def has_equivalent(self, other_sequence):
         """Checks if the sequence of the current chain object is equivalent (very similar or identical) to another sequence.
         Considerations: pairwise alignment is performed and the cutoff is set to 0.95. If the alignment score is above the cutoff,
@@ -71,3 +72,17 @@ class CustomChain(Chain):
             return True
         else:
             return False
+
+    def get_common_atoms(self, other):
+        """Compares the list of atoms of two chains and returns an even tuple of atoms"""
+        self_atoms = sorted(self.get_atoms())   # Generates a sorted list of atoms to be able to compare them
+        other_atoms = sorted(other.get_atoms())
+        len_self = len(self_atoms)
+        len_other = len(other_atoms)
+        # Return the atom list sliced by the limitant distance
+        if len_self > len_other:
+            return self_atoms[:len_other], other_atoms
+        elif len_other > len_self:
+            return self_atoms, other_atoms[:len_self]
+        else:               # If they are equal, just return the atoms lists
+            return self_atoms, other_atoms
