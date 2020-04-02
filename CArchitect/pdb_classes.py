@@ -3,10 +3,11 @@
 #Bio.PDB is a Biopython module that focuses on working with crystal structures of biological macromolecules.
 
 from Bio.PDB.Structure import Structure
+from Bio.PDB import MMCIFIO
 from Bio.PDB.Model import Model
 from Bio.PDB.Chain import Chain
 from Bio import pairwise2
-import utilities
+import utilities, sys
 
 class CustomModel(Model):
     """Custom  model class that inherits attributes and methods from the biopython model class.
@@ -15,6 +16,17 @@ class CustomModel(Model):
         """Adds a child to the Entity."""
         entity.set_parent(self)
         self.child_list.append(entity)
+
+    def save_to_mmCIF(self, out_name):
+        """Saves a model using the given output name in the cwd"""
+        io = MMCIFIO
+        io.set_structure(self)
+        try:
+            io.save(out_name + ".cif")
+            print(out_name + ".cif saved")
+        except:
+            sys.stderr.write("Couldn't save models to current working directory. "
+                             "Make sure you have permission to write files")
 
 
 class CustomChain(Chain):

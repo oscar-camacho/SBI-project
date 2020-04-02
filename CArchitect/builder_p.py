@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from Bio import SeqIO, PDB, pairwise2
 from pdb_classes import CustomChain, CustomModel
-from exception_classes import *
+# from exception_classes import *
 import utilities
 import argparse, os, sys, re, random, copy
 
@@ -63,9 +63,11 @@ def data_extraction(directory, verbose=False):
             path = options.input + '/'
             pdb_files = [path + pdb_file for pdb_file in os.listdir(path) if pdb_file[-4:] == '.pdb']
         else:
-            raise Directory_Not_Found(options.input)
+            pass
+            # raise Directory_Not_Found(options.input)
     else:
-        raise No_Input_Directory_Provided("""No input directory provided. You should introduce the name of the directory containing the PDB files for each interacting pair of the complex.""")
+        pass
+        # raise No_Input_Directory_Provided("""No input directory provided. You should introduce the name of the directory containing the PDB files for each interacting pair of the complex.""")
 
     num_files = len(pdb_files)   #Printing number of processed filenames
     if verbose:
@@ -81,11 +83,13 @@ def data_extraction(directory, verbose=False):
             if verbose:
                 sys.stderr.write("  %s finished\n" %(pdb_file))
     else:
-        raise No_PDB_Found("No PDB files found. Please make sure the given directory contains PDB files.")
+        pass
+        # raise No_PDB_Found("No PDB files found. Please make sure the given directory contains PDB files.")
 
     for pdb_model in pdb_models:    #Ensuring all pdb files contain 1 or 2 chains
         if len(pdb_model.child_list) > 2:
-            raise Incorrect_Number_Chains("A PDB input file does not contain two chains. Please, all PDB files must only contain two chains.")
+            pass
+            #raise Incorrect_Number_Chains("A PDB input file does not contain two chains. Please, all PDB files must only contain two chains.")
     if verbose:
         sys.stderr.write("PDB information stored.\n\n")
     return pdb_models
@@ -165,9 +169,11 @@ if options.fasta is None:
 
 try:
     pdb_models = data_extraction(options.input, options.verbose)
-except (Directory_Not_Found, No_Input_Directory_Provided, No_PDB_Found, Incorrect_Number_Chains) as e:
-    print(e, file=sys.stderr)
-    sys.exit(1)
+except:
+    pass
+# except (Directory_Not_Found, No_Input_Directory_Provided, No_PDB_Found, Incorrect_Number_Chains) as e:
+  #  print(e, file=sys.stderr)
+  #  sys.exit(1)
 
 updated_pdb_models = find_equivalent_chains(pdb_models, options.verbose)
 
@@ -184,7 +190,7 @@ def data_transformation(pdb_models, verbose):
     for pdb_model in pdb_models:
         for chain in pdb_model.get_chains():
             count += 1
-            if count%2 == 0:
+            if count % 2 == 0:
                 chain_index = 0
             else:
                 chain_index = 1
@@ -194,28 +200,31 @@ def data_transformation(pdb_models, verbose):
                 interaction_dict[chain.id].append((pdb_model, chain, interacting_chain))
     return interaction_dict
 
+
 interaction_dict = data_transformation(updated_pdb_models, options.verbose)
-for key in interaction_dict:
-    print (interaction_dict[key])
+# for key in interaction_dict:
+#    print(interaction_dict[key])
 
 
 def starting_model(pdb_models, verbose):
     chain_count = {}
-    max_value = 0
     possible_models = []
     for pdb_model in pdb_models:
         for chain in pdb_model.get_chains():
             if chain.id not in chain_count:
                 chain_count[chain.id] = 0
             chain_count[chain.id] += 1
-    for chain, value in chain_count.items():
-        if value > max_value:
-            max_value = value
-            max_interacting_chain = chain
+    print("The interaction count for each chain is {}".format(chain_count))
+    models_interactions = {}
     for pdb_model in pdb_models:
-        for chain in pdb_model.get_chains():
-            if chain.id == max_interacting_chain:
-                possible_models.append(pdb_model)
+        model_interactions = sum(chain_count[chain.id] for chain in pdb_model.child_list)
+        models_interactions.setdefault(pdb_model, model_interactions)
+        print("Model {} with chains {} has {} interaction(s)".format(pdb_model.id, [chain.id for chain in pdb_model.child_list], model_interactions))
+    max_model_interaction = max(models_interactions.values())
+    for model, model_interactions in models_interactions.items():
+        if model_interactions == max_model_interaction:
+            possible_models.append(model)
+    print("The maximum value of the model interactions is {}, belonging to the model(s) {}".format(max_model_interaction, [model.id for model in possible_models]))
     starting_model = random.choice(possible_models)
     return starting_model
 
@@ -229,7 +238,7 @@ def generate_model_profile(model):
     profile = {}  # { "A":1, "B":4, ...}
     for chain in model:
         profile.setdefault(chain.id, 0)  # If id not in dic, set it to 0
-        profile[chain.id] += 1 # Sum 1 to the counter of the id
+        profile[chain.id] += 1  # Sum 1 to the counter of the id
     return profile
 
 
@@ -249,49 +258,86 @@ def has_clashes(move_atoms, model):
 
 
 def complex_builder(interaction_dict, pdb_models, num_models, max_chains, verbose):
+    output_objects = []
     for i in range(1, num_models + 1):
         if verbose:
             sys.stderr.write("Building Macrocomplex " + str(i) + " ...\n")
         macrocomplex = starting_model(pdb_models, verbose).copy()
+        if verbose:
+            sys.stderr.write("Building it from model {}, which contains chains {} and {} \n\n".format(macrocomplex.id, [chain.id for chain in macrocomplex.get_chains()][0], [chain.id for chain in macrocomplex.get_chains()][1]))
+        for key, values in interaction_dict.items():
+            print("{}:{} tuples".format(key, len(values)))
+            for tuple in values:
+                print("{}:{}".format(key, [element.id for element in tuple]))
+            print("\n")
         model_stech = generate_model_profile(macrocomplex)
         macrocomplex.id = "Model_" + str(i)
         run = True  # While this variable is true, the program will keep trying to add chains to the macrocomplex
         num_of_chains = 2  # The model starts with 2 chains already
         num_empty_chains = 0  # NUmber of chains that have all their interactions depleted
-        #while run:
-        for chain in macrocomplex:  # Iterates the macrocomplex chains
-            if num_of_chains < max_chains:  # If the number of chains still hasn't reached the maximum allowed
-                if len(interaction_dict[chain.id]) != 0:    # If this chain still has pending interactions. Chain id is the key of the dictionary
-                    random.shuffle(interaction_dict[chain.id])   # Shuffle the interactions list (to avoid repetitive behaviour)
-                    for tuple in interaction_dict[chain.id]:
-                        fix = tuple[1]    # Get the chain instance that corresponds to the same chain in macrocomplex
-                        to_move = tuple[2]   # Get the chain instance that interacts with the other
-                        sup = PDB.Superimposer()  # Generates a superimposer instance
-                        chain_atoms, fix_atoms = chain.get_common_atoms(fix) # Get common atoms between the
-                                                                                # macrocomplex chain and the one in the interaction dictionary
-                        sup.set_atoms(chain_atoms, fix_atoms)  # Generate the superposition
-                        move = to_move.copy()  # Make a copy of the chain to move
-                        sup.apply(move)  # Apply superposition matrix
-                        move_atoms = sorted(move.get_atoms())
-                        if not has_clashes(move_atoms, macrocomplex):
-                            if verbose:
-                                sys.stderr.write("  Succesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".\n")
-                                sys.stderr.write("  Chain " + str(num_of_chains) + " added: Chain " + move.id + " from model " + tuple[0].id + ".\n")
-                            #move.parent = None      # Sets the parent to none to evade biopython's strict id policy
-                            #macrocomplex.add(move)  # Adds the target chain to the model
-                            model_stech.setdefault(move.id, 0)
-                            model_stech[move.id] += 1
-                            num_of_chains += 1
-                            del interaction_dict[chain.id][0]   # elimino la tupla con el modelo que acabamos de añadir. faltaria eliinar la tupla con el mismo objeto.
-                        else:
-                            if verbose:
-                                sys.stderr.write("  Unsuccesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".\n")
-                                sys.stderr.write("  Chain " + move.id + " from model " + tuple[0].id + " NOT ADDED.\n")
-                        model_id = tuple[0].get_id()    #para eliminar la otra tupla quizá hay que identificarla por la id del modelo y luego mirar como eliminarla
-                        print(model_id)
+        while run:
+            for chain in macrocomplex:  # Iterates the macrocomplex chains
+                if num_of_chains < max_chains:  # If the number of chains still hasn't reached the maximum allowed
+                    if len(interaction_dict[chain.id]) != 0:
+                        if verbose:
+                            sys.stderr.write("*** Adding interactions from chain {} ***\n\n".format(chain.id))
+                        # If this chain still has pending interactions. Chain id is the key of the dictionary
+                        random.shuffle(interaction_dict[chain.id])   # Shuffle the interactions list (to avoid repetitive behaviour)
+                        for tuple in interaction_dict[chain.id]:
+                            fix = tuple[1]    # Get the chain instance that corresponds to the same chain in macrocomplex
+                            to_move = tuple[2]   # Get the chain instance that interacts with the other
+                            sup = PDB.Superimposer()  # Generates a superimposer instance
+                            chain_atoms, fix_atoms = chain.get_common_atoms(fix)  # Get common atoms between the
+                            # macrocomplex chain and the one in the interaction dictionary
+                            sup.set_atoms(chain_atoms, fix_atoms)  # Generate the superposition
+                            move = to_move.copy()  # Make a copy of the chain to move
+                            sup.apply(move)  # Apply superposition matrix
+                            move_atoms = sorted(move.get_atoms())
+                            if not has_clashes(move_atoms, macrocomplex):
+                                if verbose:
+                                    sys.stderr.write("-> Succesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".")
+                                    sys.stderr.write("  Chain " + str(num_of_chains) + " added: Chain " + move.id + " from model " + tuple[0].id + ".\n\n")
+                                move.parent = None      # Sets the parent to none to evade biopython's strict id policy
+                                macrocomplex.add(move)  # Adds the target chain to the model
+                                model_stech.setdefault(move.id, 0)
+                                model_stech[move.id] += 1
+                                num_of_chains += 1
+                                index = interaction_dict[chain.id].index(tuple)
+                                del interaction_dict[chain.id][index] # elimino la tupla con el modelo que acabamos de añadir. faltaria eliinar la tupla con el mismo objeto.
+                                for redundant_tuple in interaction_dict[move.id]:
+                                    if redundant_tuple[0].id == tuple[0].id:
+                                        index = interaction_dict[move.id].index(redundant_tuple)
+                                        del interaction_dict[move.id][index]
+                            else:
+                                if verbose:
+                                    sys.stderr.write("->  Unsuccesful superposition between " + str(chain.id) + " from macrocomplex and chain " + fix.id + " from model " + tuple[0].id + ".")
+                                    sys.stderr.write("  Chain " + move.id + " from model " + tuple[0].id + " NOT ADDED.\n\n")
+                               #para eliminar la otra tupla quizá hay que identificarla por la id del modelo y luego mirar como eliminarla
+                            for key, values in interaction_dict.items():
+                                print("{}:{} tuples".format(key, len(values)))
+                                print("----------")
+                                for tuple in values:
+                                    print("{}:{}".format(key, [element.id for element in tuple]))
+                                print("\n")
 
-
-
+                    else:
+                        if verbose:
+                            print("Chain " + chain.id + " empty")
+                        num_empty_chains += 1
+                else:
+                    run = False  # When the maximum chain treshold is reached stop running
+                    break
+            if num_empty_chains >= len(macrocomplex):  # If all chains are empty of interactions stop running
+                run = False
+            if verbose:
+                stechometry_string = ""  # Print the model's stechometry
+                for key in sorted(model_stech.keys()):
+                    stechometry_string += key + ":" + str(model_stech[key]) + ","
+                stechometry_string = stechometry_string[:-1]
+                print("Macrocomplex's" + str(i) + " Stoichiometry is: " + stechometry_string)
+            print("Macrocomplex " + str(i) + " finished")
+            output_objects.append(macrocomplex)  # Add model to the models list
+        return output_objects
 
 # Will have to remove from interaction_dict the models with the model id
 #for pdb_model in pdb_models:
@@ -299,8 +345,20 @@ def complex_builder(interaction_dict, pdb_models, num_models, max_chains, verbos
 #        print("hi")
 
 
+def save_results(out_models, output):
+    """Saves the resulting models into cif files (at the current working directory"""
+    i = 1
+    print("Saving models...")
+    path = os.getcwd()
+    for model in out_models:  # Saves all models in the current working directory
+        print(list((model.get_chains())))
+        model.save_to_mmCIF(path+"/"+output + "_" + str(i))
+        i += 1
+    print("Done\n")
 
-complex_builder(interaction_dict, pdb_models, 1, 100, options.verbose)
+
+output_models = complex_builder(interaction_dict, pdb_models, 1, 100, options.verbose)
+#save_results(output_models, "output")
 
 
 
