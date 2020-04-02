@@ -33,6 +33,12 @@ class CustomChain(Chain):
         self.xtra = chainObject.xtra
         self.level = chainObject.level
 
+
+    def __hash__(self):
+        """Returns the hash value of the object. Used to avoid the existence of more than one instance of the object with the same ID in dictionaries or sets."""
+        return self._id.__hash__()
+
+
     def get_sequence(self):
         """Checks what type of sequence has the chain according to the nature of its first residue.
         Reads the sequence in the format present in the object and returns it in a more conventional format."""
@@ -74,15 +80,15 @@ class CustomChain(Chain):
             return False
 
     def get_common_atoms(self, other):
-        """Compares the list of atoms of two chains and returns an even tuple of atoms"""
-        self_atoms = sorted(self.get_atoms())   # Generates a sorted list of atoms to be able to compare them
+        """Compares the list of atoms of two chains and returns an even tuple of atoms."""
+        self_atoms = sorted(self.get_atoms())
         other_atoms = sorted(other.get_atoms())
         len_self = len(self_atoms)
         len_other = len(other_atoms)
-        # Return the atom list sliced by the limitant distance
+
         if len_self > len_other:
             return self_atoms[:len_other], other_atoms
         elif len_other > len_self:
             return self_atoms, other_atoms[:len_self]
-        else:               # If they are equal, just return the atoms lists
+        else:
             return self_atoms, other_atoms
